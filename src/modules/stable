@@ -18,6 +18,7 @@ rlm_ldap
 rlm_linelog
 rlm_logintime
 rlm_mschap
+rlm_mschapv2_kerberos
 rlm_otp
 rlm_pam
 rlm_pap
