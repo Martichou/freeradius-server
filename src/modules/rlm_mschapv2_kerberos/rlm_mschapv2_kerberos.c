@@ -663,6 +663,15 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 		return -1;
 	}
 
+	// TODO - Check if kdc libs paths are set in the config
+	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L655
+
+	// TODO - Open kdc libs 
+
+	// TODO - Load all the functions from kdc libs
+
+	// TODO - Do all the initialization from kdc
+
 	return 0;
 }
 
@@ -671,14 +680,19 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
  */
 static int mod_detach(UNUSED void *instance)
 {
-#ifdef WITH_AUTH_WINBIND
 	rlm_mschapv2_kerberos_t *inst = instance;
 
+	// TODO - Unlock all kdc connection and context
+	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L827
+#ifdef WITH_AUTH_WINBIND
 	fr_connection_pool_free(inst->wb_pool);
 #endif
 
 	return 0;
 }
+
+// TODO - Add the kerberos_ntlm_hash function (updated) from Ether42
+// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L837
 
 /*
  *	add_reply() adds either MS-CHAP2-Success or MS-CHAP-Error
@@ -1984,6 +1998,8 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 		RDEBUG2("Client is using MS-CHAPv2");
 		mschap_result = do_mschap(inst, request, nt_password, mschapv1_challenge,
 					  response->vp_octets + 26, nthashhash, auth_method);
+		// TODO - Modify mschap_error for finding ntlm hash from kerberos database
+		// this is to be done if mschap_error < 0 (which means (?) password incorrect)
 		rcode = mschap_error(inst, request, *response->vp_octets,
 				     mschap_result, mschap_version, smb_ctrl);
 		if (rcode != RLM_MODULE_OK) return rcode;
@@ -2011,6 +2027,9 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 		REDEBUG("You set 'Auth-Type = MS-CHAP' for a request that does not contain any MS-CHAP attributes!");
 		return RLM_MODULE_INVALID;
 	}
+
+	// TODO - Do we need to check for smb_ctrl if the account is disabled ? or if account is locked out
+	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L2128
 
 	/* now create MPPE attributes */
 	if (inst->use_mppe) {
