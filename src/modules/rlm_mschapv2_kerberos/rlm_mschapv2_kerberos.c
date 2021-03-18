@@ -157,7 +157,7 @@ static ssize_t mschap_xlat(void *instance, REQUEST *request,
 	uint8_t		buffer[32];
 	VALUE_PAIR	*user_name;
 	VALUE_PAIR	*chap_challenge, *response;
-	rlm_mschap_t	*inst = instance;
+	rlm_mschapv2_kerberos_t	*inst = instance;
 
 	response = NULL;
 
@@ -540,10 +540,10 @@ static void *mod_conn_create(TALLOC_CTX *ctx, UNUSED void *instance)
 
 
 static const CONF_PARSER passchange_config[] = {
-	{ "ntlm_auth", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschap_t, ntlm_cpw), NULL },
-	{ "ntlm_auth_username", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschap_t, ntlm_cpw_username), NULL },
-	{ "ntlm_auth_domain", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschap_t, ntlm_cpw_domain), NULL },
-	{ "local_cpw", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschap_t, local_cpw), NULL },
+	{ "ntlm_auth", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschapv2_kerberos_t, ntlm_cpw), NULL },
+	{ "ntlm_auth_username", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschapv2_kerberos_t, ntlm_cpw_username), NULL },
+	{ "ntlm_auth_domain", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschapv2_kerberos_t, ntlm_cpw_domain), NULL },
+	{ "local_cpw", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschapv2_kerberos_t, local_cpw), NULL },
 	CONF_PARSER_TERMINATOR
 };
 
@@ -551,20 +551,20 @@ static const CONF_PARSER module_config[] = {
 	/*
 	 *	Cache the password by default.
 	 */
-	{ "use_mppe", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschap_t, use_mppe), "yes" },
-	{ "require_encryption", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschap_t, require_encryption), "no" },
-	{ "require_strong", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschap_t, require_strong), "no" },
-	{ "with_ntdomain_hack", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschap_t, with_ntdomain_hack), "yes" },
-	{ "ntlm_auth", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschap_t, ntlm_auth), NULL },
-	{ "ntlm_auth_timeout", FR_CONF_OFFSET(PW_TYPE_INTEGER, rlm_mschap_t, ntlm_auth_timeout), NULL },
+	{ "use_mppe", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, use_mppe), "yes" },
+	{ "require_encryption", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, require_encryption), "no" },
+	{ "require_strong", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, require_strong), "no" },
+	{ "with_ntdomain_hack", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, with_ntdomain_hack), "yes" },
+	{ "ntlm_auth", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_XLAT, rlm_mschapv2_kerberos_t, ntlm_auth), NULL },
+	{ "ntlm_auth_timeout", FR_CONF_OFFSET(PW_TYPE_INTEGER, rlm_mschapv2_kerberos_t, ntlm_auth_timeout), NULL },
 	{ "passchange", FR_CONF_POINTER(PW_TYPE_SUBSECTION, NULL), (void const *) passchange_config },
-	{ "allow_retry", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschap_t, allow_retry), "yes" },
-	{ "retry_msg", FR_CONF_OFFSET(PW_TYPE_STRING, rlm_mschap_t, retry_msg), NULL },
-	{ "winbind_username", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_TMPL, rlm_mschap_t, wb_username), NULL },
-	{ "winbind_domain", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_TMPL, rlm_mschap_t, wb_domain), NULL },
-	{ "winbind_retry_with_normalised_username", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschap_t, wb_retry_with_normalised_username), "no" },
+	{ "allow_retry", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, allow_retry), "yes" },
+	{ "retry_msg", FR_CONF_OFFSET(PW_TYPE_STRING, rlm_mschapv2_kerberos_t, retry_msg), NULL },
+	{ "winbind_username", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_TMPL, rlm_mschapv2_kerberos_t, wb_username), NULL },
+	{ "winbind_domain", FR_CONF_OFFSET(PW_TYPE_STRING | PW_TYPE_TMPL, rlm_mschapv2_kerberos_t, wb_domain), NULL },
+	{ "winbind_retry_with_normalised_username", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, wb_retry_with_normalised_username), "no" },
 #ifdef __APPLE__
-	{ "use_open_directory", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschap_t, open_directory), "yes" },
+	{ "use_open_directory", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, open_directory), "yes" },
 #endif
 	// TODO - Add path to libkdb and libkdb_lda
 	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L596
@@ -577,7 +577,7 @@ static const CONF_PARSER module_config[] = {
 static int mod_bootstrap(CONF_SECTION *conf, void *instance)
 {
 	char const *name;
-	rlm_mschap_t *inst = instance;
+	rlm_mschapv2_kerberos_t *inst = instance;
 
 	/*
 	 *	Create the dynamic translation.
@@ -596,7 +596,7 @@ static int mod_bootstrap(CONF_SECTION *conf, void *instance)
  */
 static int mod_instantiate(CONF_SECTION *conf, void *instance)
 {
-	rlm_mschap_t *inst = instance;
+	rlm_mschapv2_kerberos_t *inst = instance;
 
 	/*
 	 *	For backwards compatibility
@@ -672,7 +672,7 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 static int mod_detach(UNUSED void *instance)
 {
 #ifdef WITH_AUTH_WINBIND
-	rlm_mschap_t *inst = instance;
+	rlm_mschapv2_kerberos_t *inst = instance;
 
 	fr_connection_pool_free(inst->wb_pool);
 #endif
@@ -745,7 +745,7 @@ static int write_all(int fd, char const *buf, int len) {
  * Perform an MS-CHAP2 password change
  */
 
-static int CC_HINT(nonnull (1, 2, 4, 5)) do_mschap_cpw(rlm_mschap_t *inst,
+static int CC_HINT(nonnull (1, 2, 4, 5)) do_mschap_cpw(rlm_mschapv2_kerberos_t *inst,
 						       REQUEST *request,
 #ifdef HAVE_OPENSSL_CRYPTO_H
 						       VALUE_PAIR *nt_password,
@@ -1108,7 +1108,7 @@ ntlm_auth_err:
  *	authentication is in one place, and we can perhaps later replace
  *	it with code to call winbindd, or something similar.
  */
-static int CC_HINT(nonnull (1, 2, 4, 5 ,6)) do_mschap(rlm_mschap_t *inst, REQUEST *request, VALUE_PAIR *password,
+static int CC_HINT(nonnull (1, 2, 4, 5 ,6)) do_mschap(rlm_mschapv2_kerberos_t *inst, REQUEST *request, VALUE_PAIR *password,
 						      uint8_t const *challenge, uint8_t const *response,
 						      uint8_t nthashhash[NT_DIGEST_LENGTH], MSCHAP_AUTH_METHOD method)
 {
@@ -1412,7 +1412,7 @@ static void mppe_chap2_gen_keys128(uint8_t const *nt_hashhash,uint8_t const *res
  */
 static rlm_rcode_t CC_HINT(nonnull) mod_authorize(void * instance, REQUEST *request)
 {
-	rlm_mschap_t *inst = instance;
+	rlm_mschapv2_kerberos_t *inst = instance;
 	VALUE_PAIR *challenge = NULL;
 
 	challenge = fr_pair_find_by_num(request->packet->vps, PW_MSCHAP_CHALLENGE, VENDORPEC_MICROSOFT, TAG_ANY);
@@ -1446,7 +1446,7 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authorize(void * instance, REQUEST *requ
 	return RLM_MODULE_OK;
 }
 
-static rlm_rcode_t mschap_error(rlm_mschap_t *inst, REQUEST *request, unsigned char ident,
+static rlm_rcode_t mschap_error(rlm_mschapv2_kerberos_t *inst, REQUEST *request, unsigned char ident,
 				int mschap_result, int mschap_version, VALUE_PAIR *smb_ctrl)
 {
 	rlm_rcode_t	rcode = RLM_MODULE_OK;
@@ -1556,7 +1556,7 @@ static rlm_rcode_t mschap_error(rlm_mschap_t *inst, REQUEST *request, unsigned c
  */
 static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *request)
 {
-	rlm_mschap_t *inst = instance;
+	rlm_mschapv2_kerberos_t *inst = instance;
 	VALUE_PAIR *challenge = NULL;
 	VALUE_PAIR *response = NULL;
 	VALUE_PAIR *cpw = NULL;
@@ -2059,7 +2059,7 @@ module_t rlm_mschap = {
 	.magic		= RLM_MODULE_INIT,
 	.name		= "mschap",
 	.type		= 0,
-	.inst_size	= sizeof(rlm_mschap_t),
+	.inst_size	= sizeof(rlm_mschapv2_kerberos_t),
 	.config		= module_config,
 	.bootstrap	= mod_bootstrap,
 	.instantiate	= mod_instantiate,

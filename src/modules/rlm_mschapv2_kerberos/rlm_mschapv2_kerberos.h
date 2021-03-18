@@ -20,7 +20,7 @@ typedef enum {
 #endif
 } MSCHAP_AUTH_METHOD;
 
-typedef struct rlm_mschap_t {
+typedef struct rlm_mschapv2_kerberos_t {
 	bool			use_mppe;
 	bool			require_encryption;
 	bool			require_strong;
@@ -43,7 +43,7 @@ typedef struct rlm_mschap_t {
 #ifdef __APPLE__
 	bool			open_directory;
 #endif
-} rlm_mschap_t;
+} rlm_mschapv2_kerberos_t;
 
 #endif
 
