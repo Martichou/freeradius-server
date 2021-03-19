@@ -3732,11 +3732,8 @@ $as_echo "$as_me: WARNING: FAILURE: rlm_mschapv2_kerberos requires: $fail." >&2;
 	fi
 fi
 
-mod_ldflags="$mod_ldflags $SMART_LIBS"
-mod_cflags="$SMART_CPPFLAGS"
-
-
-
+mod_ldflags="$mod_ldflags $SMART_LIBS -ldl -lkrb5"
+mod_cflags="$SMART_CPPFLAGS -I ../krb5/src/plugins/kdb/ldap/libkdb_ldap/ -I ../krb5/src/include/ -I ../krb5/src/lib/kdb/ -DHAVE_LDAP_INITIALIZE -std=gnu99"
 
 
 ac_config_headers="$ac_config_headers config.h"

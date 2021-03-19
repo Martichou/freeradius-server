@@ -566,7 +566,6 @@ static const CONF_PARSER module_config[] = {
 #ifdef __APPLE__
 	{ "use_open_directory", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, open_directory), "yes" },
 #endif
-	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L596
 	{ "libkdb_path", FR_CONF_OFFSET(PW_TYPE_STRING, rlm_mschapv2_kerberos_t, libkdb_path), NULL},
 	{ "libkdb_ldap_path", FR_CONF_OFFSET(PW_TYPE_STRING, rlm_mschapv2_kerberos_t, libkdb_ldap_path), NULL},
 	CONF_PARSER_TERMINATOR

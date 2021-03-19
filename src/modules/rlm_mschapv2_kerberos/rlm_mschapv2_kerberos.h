@@ -12,6 +12,7 @@ RCSIDH(rlm_mschapv2_kerberos_h, "$Id$")
 #endif
 
 #include <kdb_ldap.h>
+#include <dlfcn.h>
 
 /* Method of authentication we are going to use */
 typedef enum {
@@ -45,8 +46,8 @@ typedef struct rlm_mschapv2_kerberos_t {
 #ifdef __APPLE__
 	bool			open_directory;
 #endif
-	char*			libkdb_ldap_path;
-	char*			libkdb_path;
+	char const*		libkdb_ldap_path;
+	char const*		libkdb_path;
 	void*			kdb_ldap;
 	void*			kdb;
 	krb5_context	krb_context;
