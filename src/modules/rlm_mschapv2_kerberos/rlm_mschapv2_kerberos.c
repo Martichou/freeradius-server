@@ -50,6 +50,8 @@ USES_APPLE_DEPRECATED_API	/* OpenSSL API has been deprecated by Apple */
 int od_mschap_auth(REQUEST *request, VALUE_PAIR *challenge, VALUE_PAIR * usernamepair);
 #endif
 
+#define MSCHAP_INFO(fmt, ...) INFO("rlm_mschapv2_kerberos (%s): " fmt, inst->xlat_name, ##__VA_ARGS__)
+
 /* Allowable account control bits */
 #define ACB_DISABLED	0x00010000	//!< User account disabled.
 #define ACB_HOMDIRREQ	0x00020000	//!< Home directory required.
@@ -1461,7 +1463,8 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authorize(void * instance, REQUEST *requ
 }
 
 static rlm_rcode_t mschap_error(rlm_mschapv2_kerberos_t *inst, REQUEST *request, unsigned char ident,
-				int mschap_result, int mschap_version, VALUE_PAIR *smb_ctrl)
+				int mschap_result, int mschap_version, VALUE_PAIR *smb_ctrl,
+				VALUE_PAIR *username, uint8_t *mschapv1_challenge, uint8_t *nthashhash, VALUE_PAIR *response)
 {
 	rlm_rcode_t	rcode = RLM_MODULE_OK;
 	int		error = 0;
@@ -1522,10 +1525,50 @@ static rlm_rcode_t mschap_error(rlm_mschapv2_kerberos_t *inst, REQUEST *request,
 
 	} else if (mschap_result < 0) {
 		REDEBUG("MS-CHAP2-Response is incorrect");
+		if (!username)
+			goto do_error;
+
+		MSCHAP_INFO("will now check the NTLM hash from KDC");
+		// Malloc instead of calloc for optimization purpose
+		char* principal	= malloc(username->length + 2 + strlen(inst->krb_context->default_realm) * sizeof(char));
+		if (principal) {
+			// TODO - Is it better to use sprintf ?
+			// strcpy(principal, username->vp_strvalue);
+			// principal[username->length] = '@';
+			// strcpy(principal + username->length + 1, inst->krb_context->default_realm);
+			sprintf(principal, "%s@%s", username->vp_strvalue, inst->krb_context->default_realm);
+			unsigned char* ntlm = kerberos_ntlm_hash(inst, principal);
+			if (ntlm) {
+				unsigned char calculated[24];
+				// TODO - Check return code
+				smbdes_mschap(ntlm, mschapv1_challenge, calculated);
+				if (rad_digest_cmp(response->vp_octets + 26, calculated, 24) != 0) {
+			      	DEBUG("Digest comparison failed");
+			      	free(ntlm);
+			      	free(principal);
+			      	goto do_error;
+			    }
+				// TODO - Check return code
+				fr_md4_calc(nthashhash, ntlm, 16);
+			    free(ntlm);
+			    free(principal);
+			    goto skip_error;
+			} else {
+			    DEBUG("Failed to retrieve ntlm hash from kerberos database");
+			    free(principal);
+			    goto do_error;
+			}
+		} else {
+			DEBUG("Failed to allocate principal: calloc() failed");
+			goto do_error;
+		}	
+	do_error:
 		error = 691;
 		retry = inst->allow_retry;
 		message = "Authentication rejected";
 		rcode = RLM_MODULE_REJECT;
+	skip_error:
+		;
 	}
 
 	if (rcode == RLM_MODULE_OK) return RLM_MODULE_OK;
@@ -1545,6 +1588,8 @@ static rlm_rcode_t mschap_error(rlm_mschapv2_kerberos_t *inst, REQUEST *request,
 
 	default:
 		return RLM_MODULE_FAIL;
+		// Might be safer to break in case of a compiler non-sense
+		break;
 	}
 	mschap_add_reply(request, ident, "MS-CHAP-Error", buffer, strlen(buffer));
 
@@ -1885,7 +1930,8 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 		 *	Check for errors, and add MSCHAP-Error if necessary.
 		 */
 		rcode = mschap_error(inst, request, *response->vp_octets,
-				     mschap_result, mschap_version, smb_ctrl);
+					mschap_result, mschap_version, smb_ctrl, 
+					NULL, NULL, NULL, NULL);
 		if (rcode != RLM_MODULE_OK) return rcode;
 	} else if ((response = fr_pair_find_by_num(request->packet->vps, PW_MSCHAP2_RESPONSE,
 						   VENDORPEC_MICROSOFT, TAG_ANY)) != NULL) {
@@ -2001,7 +2047,8 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 		// TODO - Modify mschap_error for finding ntlm hash from kerberos database
 		// this is to be done if mschap_error < 0 (which means (?) password incorrect)
 		rcode = mschap_error(inst, request, *response->vp_octets,
-				     mschap_result, mschap_version, smb_ctrl);
+					mschap_result, mschap_version, smb_ctrl, 
+					username, mschapv1_challenge, nthashhash, response);
 		if (rcode != RLM_MODULE_OK) return rcode;
 
 #ifdef WITH_AUTH_WINBIND
