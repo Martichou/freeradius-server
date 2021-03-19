@@ -684,7 +684,6 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 		return -1;
 	}
 
-	// TODO - Open kdc libs 
 	/* opening kdb libs */
 	inst->kdb = dlopen(inst->libkdb_path, RTLD_LAZY);
 	if (!inst->kdb) {
@@ -697,7 +696,6 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 		return -1;
 	}
 
-	// TODO - Load all the functions from kdc libs
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_lib_init, (krb5_error_code (*)(void)));
 	KRB5_FUNCTION(kdb_ldap, krb5_db_setup_lib_handle, (krb5_error_code (*)(krb5_context)));
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_read_server_params, (krb5_error_code (*)(krb5_context, char*, int)));
@@ -712,7 +710,6 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_close, (krb5_error_code (*)(krb5_context)));
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_lib_cleanup, (krb5_error_code (*)(void)));
 
-	// TODO - Do all the initialization from kdc
 	/* initializing */
 	if (krb5_init_context(&inst->krb_context)) {
 		cf_log_err_cs(conf, "krb5_init_context() function failed");
@@ -873,22 +870,32 @@ static unsigned char* kerberos_ntlm_hash(rlm_mschapv2_kerberos_t* inst, char* pr
 	int i, kvno = 0;
 	krb5_keyblock key;
 	krb5_boolean more;
+	unsigned char* ntlm;
 	krb5_db_entry db_entry;
 	krb5_principal krb_principal;
 
+	/* Convert a string principal to a krb5_principal (allocated and so should be freed) */
 	if (krb5_parse_name(inst->krb_context, principal, &krb_principal)) {
 		MSCHAP_INFO("won't check ntlm hash of %s: could not parse principal!", principal);
 		return NULL;
 	}
+	
+	/*
+	 * Look up a principal in the the ldap, and "save" it in db_entry
+	 * - entries will be set to the number of match we got
+	 * - more will be set to true if there is more than 1 principal
+	 */
 	if (inst->krb5_ldap_get_principal(inst->krb_context, krb_principal, 0, &db_entry, &entries, &more)) {
 		krb5_free_principal(inst->krb_context, krb_principal);
 		MSCHAP_INFO("won't check ntlm hash of %s: could not get principal!", principal);
 		return NULL;
+		/* If we got more than 1 principal, free and return */
 	} else if (more) {
 		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
 		krb5_free_principal(inst->krb_context, krb_principal);
 		MSCHAP_INFO("won't check ntlm hash of %s: found more principals!", principal);
 		return NULL;
+		/* If we've not found any principal, free and return */
 	} else if (!entries) {
 		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
 		krb5_free_principal(inst->krb_context, krb_principal);
@@ -904,11 +911,12 @@ static unsigned char* kerberos_ntlm_hash(rlm_mschapv2_kerberos_t* inst, char* pr
 		return NULL;
 	}
 	
-	/* getting the latest kvno */
-	for (i = 0; i < db_entry.n_key_data; i++) {
+	/* getting the latest kvno (service ticket) */
+	for (i = 0; i < db_entry.n_key_data; i++)
 		if (kvno < db_entry.key_data[i].key_data_kvno)
 			kvno = db_entry.key_data[i].key_data_kvno;
-	}
+
+	/* if we've not found any kvno, free and return */
 	if (!kvno) {
 		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
 		krb5_free_principal(inst->krb_context, krb_principal);
@@ -917,32 +925,27 @@ static unsigned char* kerberos_ntlm_hash(rlm_mschapv2_kerberos_t* inst, char* pr
 	}
 	
 	/* getting the arc-four-hmac encrypted key */
-	for (i = 0; i < db_entry.n_key_data; i++) {
-		if (kvno == db_entry.key_data[i].key_data_kvno) {
-			if (!inst->krb5_dbekd_decrypt_key_data(inst->krb_context, &inst->master_keyblock, &db_entry.key_data[i], &key, NULL)) {
-				if (key.enctype == ENCTYPE_ARCFOUR_HMAC) {
-					break;
-				}
-				krb5_free_keyblock_contents(inst->krb_context, &key);
-			}
-		}
+	if (inst->krb5_dbekd_decrypt_key_data(inst->krb_context, &inst->master_keyblock, &db_entry.key_data[i], &key, NULL)) {
+		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
+		krb5_free_principal(inst->krb_context, krb_principal);
+		MSCHAP_INFO("fatal error while getting the encrypted key of %s", principal);
+		return NULL;
 	}
+
+	/* Sanity check for the key "we've got", ensure it's type */
 	if (key.enctype != ENCTYPE_ARCFOUR_HMAC) {
 		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
 		krb5_free_principal(inst->krb_context, krb_principal);
+		krb5_free_keyblock_contents(inst->krb_context, &key);
 		MSCHAP_INFO("won't check ntlm hash of %s: no arcfour-hmac encryption!", principal);
 		return NULL;
 	}
 	
-	unsigned char* ntlm = malloc(16 * sizeof(unsigned char));
+	/* Copy the content of the key to the newly allocated ntlm */
+	ntlm = malloc(16 * sizeof(unsigned char));
 	memcpy(ntlm, key.contents, 16);
-	char ntlm_hex[33];
-	char* ntlm_hex_ptr = ntlm_hex;
-	for (i = 0; i < 16; i++) {
-		snprintf(ntlm_hex_ptr, 3, "%02x", ntlm[i]);
-		ntlm_hex_ptr += 2;
-	}
-	DEBUG("ntlm hash found for %s: %s", principal, ntlm_hex);
+	/* Free allocated memory and return the NTLM */
+	DEBUG("ntlm hash found for %s", principal);
 	inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
 	krb5_free_principal(inst->krb_context, krb_principal);
 	krb5_free_keyblock_contents(inst->krb_context, &key);
