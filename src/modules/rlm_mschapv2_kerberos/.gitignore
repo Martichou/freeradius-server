@@ -1,3 +1,3 @@
 config.h
-rlm_mschap.mk
+rlm_mschapv2_kerberos.mk
 smbencrypt

@@ -575,14 +575,14 @@ static const CONF_PARSER module_config[] = {
 /*
  *  Useful macro to dlsym all the functions kdb .so
  */
-#define KRB5_FUNCTION(handle, function, type)                           \
-  do {                                                                  \
-    inst->function = type dlsym(inst->handle, #function);		\
-    if (!inst->function) {						\
-      cf_log_err_cs(conf, "could not find " #function "() function");	\
-      return -1;							\
-    }									\
-  } while (0)
+#define KRB5_FUNCTION(handle, function, type)								\
+	do {																	\
+		inst->function = type dlsym(inst->handle, #function);				\
+		if (!inst->function) {												\
+      		cf_log_err_cs(conf, "could not find " #function "() function");	\
+      		return -1;														\
+    	}																	\
+  	} while (0)
 
 static int mod_bootstrap(CONF_SECTION *conf, void *instance)
 {
@@ -644,14 +644,14 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 
 	switch (inst->method) {
 	case AUTH_INTERNAL:
-		DEBUG("rlm_mschap (%s): using internal authentication", inst->xlat_name);
+		DEBUG("rlm_mschapv2_kerberos (%s): using internal authentication", inst->xlat_name);
 		break;
 	case AUTH_NTLMAUTH_EXEC:
-		DEBUG("rlm_mschap (%s): authenticating by calling 'ntlm_auth'", inst->xlat_name);
+		DEBUG("rlm_mschapv2_kerberos (%s): authenticating by calling 'ntlm_auth'", inst->xlat_name);
 		break;
 #ifdef WITH_AUTH_WINBIND
 	case AUTH_WBCLIENT:
-		DEBUG("rlm_mschap (%s): authenticating directly to winbind", inst->xlat_name);
+		DEBUG("rlm_mschapv2_kerberos (%s): authenticating directly to winbind", inst->xlat_name);
 		break;
 #endif
 	}

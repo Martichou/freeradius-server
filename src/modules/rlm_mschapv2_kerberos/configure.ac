@@ -1,6 +1,6 @@
-AC_INIT(rlm_mschap.c)
+AC_INIT(rlm_mschapv2_kerberos.c)
 AC_REVISION($Revision$)
-AC_DEFUN(modname,[rlm_mschap])
+AC_DEFUN(modname,[rlm_mschapv2_kerberos])
 
 if test x$with_[]modname != xno; then
 
@@ -129,5 +129,5 @@ AC_SUBST(mod_cflags)
 AC_SUBST(targetname)
 
 AC_CONFIG_HEADER(config.h)
-AC_OUTPUT(rlm_mschap.mk)
+AC_OUTPUT(rlm_mschapv2_kerberos.mk)
 
