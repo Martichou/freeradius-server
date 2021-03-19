@@ -2073,10 +2073,10 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 #undef inst
 }
 
-extern module_t rlm_mschap;
-module_t rlm_mschap = {
+extern module_t rlm_mschapv2_kerberos;
+module_t rlm_mschapv2_kerberos = {
 	.magic		= RLM_MODULE_INIT,
-	.name		= "mschap",
+	.name		= "mschapv2_kerberos",
 	.type		= 0,
 	.inst_size	= sizeof(rlm_mschapv2_kerberos_t),
 	.config		= module_config,
