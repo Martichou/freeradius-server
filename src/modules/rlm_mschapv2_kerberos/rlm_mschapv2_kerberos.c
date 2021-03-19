@@ -879,7 +879,7 @@ static unsigned char* kerberos_ntlm_hash(rlm_mschapv2_kerberos_t* inst, char* pr
 		MSCHAP_INFO("won't check ntlm hash of %s: could not parse principal!", principal);
 		return NULL;
 	}
-	
+
 	/*
 	 * Look up a principal in the the ldap, and "save" it in db_entry
 	 * - entries will be set to the number of match we got
@@ -1783,15 +1783,9 @@ static rlm_rcode_t mschap_error(rlm_mschapv2_kerberos_t *inst, REQUEST *request,
 		REDEBUG("MS-CHAP2-Response is incorrect");
 		if (!username)
 			goto do_error;
-
 		MSCHAP_INFO("will now check the NTLM hash from KDC");
-		// Malloc instead of calloc for optimization purpose
 		char* principal	= malloc(username->length + 2 + strlen(inst->krb_context->default_realm) * sizeof(char));
 		if (principal) {
-			// TODO - Is it better to use sprintf ?
-			// strcpy(principal, username->vp_strvalue);
-			// principal[username->length] = '@';
-			// strcpy(principal + username->length + 1, inst->krb_context->default_realm);
 			sprintf(principal, "%s@%s", username->vp_strvalue, inst->krb_context->default_realm);
 			unsigned char* ntlm = kerberos_ntlm_hash(inst, principal);
 			if (ntlm) {
@@ -1844,7 +1838,6 @@ static rlm_rcode_t mschap_error(rlm_mschapv2_kerberos_t *inst, REQUEST *request,
 
 	default:
 		return RLM_MODULE_FAIL;
-		// Might be safer to break in case of a compiler non-sense
 		break;
 	}
 	mschap_add_reply(request, ident, "MS-CHAP-Error", buffer, strlen(buffer));
@@ -2328,9 +2321,6 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 		REDEBUG("You set 'Auth-Type = MS-CHAP' for a request that does not contain any MS-CHAP attributes!");
 		return RLM_MODULE_INVALID;
 	}
-
-	// TODO - Do we need to check for smb_ctrl if the account is disabled ? or if account is locked out
-	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L2128
 
 	/* now create MPPE attributes */
 	if (inst->use_mppe) {
