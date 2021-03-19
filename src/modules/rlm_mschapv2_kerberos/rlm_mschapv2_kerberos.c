@@ -869,7 +869,7 @@ static int mod_detach(UNUSED void *instance)
 /*
  *  Helper function to retrieve a ntlm hash from krb database
  */
-static unsigned char* kerberos_ntlm_hash(rlm_mschap_t* inst, char* principal) {
+static unsigned char* kerberos_ntlm_hash(rlm_mschapv2_kerberos_t* inst, char* principal) {
 	int entries;
 	int i, kvno = 0;
 	krb5_keyblock key;
