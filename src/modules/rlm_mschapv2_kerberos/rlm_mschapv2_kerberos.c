@@ -435,8 +435,6 @@ static ssize_t mschap_xlat(void *instance, REQUEST *request,
 	 * Return the NT-Hash of the passed string
 	 */
 	} else if (strncasecmp(fmt, "NT-Hash ", 8) == 0) {
-		// TODO - Check if this should not be changed as per Ether42 patched version
-		// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L476
 		char const *p;
 
 		p = fmt + 8;	/* 7 is the length of 'NT-Hash' */
@@ -568,13 +566,23 @@ static const CONF_PARSER module_config[] = {
 #ifdef __APPLE__
 	{ "use_open_directory", FR_CONF_OFFSET(PW_TYPE_BOOLEAN, rlm_mschapv2_kerberos_t, open_directory), "yes" },
 #endif
-	// TODO - Add path to libkdb and libkdb_lda
 	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L596
+	{ "libkdb_path", FR_CONF_OFFSET(PW_TYPE_STRING, rlm_mschapv2_kerberos_t, libkdb_path), NULL},
+	{ "libkdb_ldap_path", FR_CONF_OFFSET(PW_TYPE_STRING, rlm_mschapv2_kerberos_t, libkdb_ldap_path), NULL},
 	CONF_PARSER_TERMINATOR
 };
 
-// TODO - Add the loader for kdb*.so
-// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L601
+/*
+ *  Useful macro to dlsym all the functions kdb .so
+ */
+#define KRB5_FUNCTION(handle, function, type)                           \
+  do {                                                                  \
+    inst->function = type dlsym(inst->handle, #function);		\
+    if (!inst->function) {						\
+      cf_log_err_cs(conf, "could not find " #function "() function");	\
+      return -1;							\
+    }									\
+  } while (0)
 
 static int mod_bootstrap(CONF_SECTION *conf, void *instance)
 {
@@ -667,12 +675,173 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 
 	// TODO - Check if kdc libs paths are set in the config
 	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L655
+	/* checking if kdb libs paths are set in the configuration */
+	if (!inst->libkdb_path) {
+		cf_log_err_cs(conf, "libkdb_path path is incorrectly set");
+		return -1;
+	}
+	if (!inst->libkdb_ldap_path) {
+		cf_log_err_cs(conf, "libkdb_ldap_path path is incorrectly set");
+		return -1;
+	}
 
 	// TODO - Open kdc libs 
+	/* opening kdb libs */
+	inst->kdb = dlopen(inst->libkdb_path, RTLD_LAZY);
+	if (!inst->kdb) {
+		cf_log_err_cs(conf, "could not open dynamic library located at libkdb_path");
+		return -1;
+	}
+	inst->kdb_ldap = dlopen(inst->libkdb_ldap_path, RTLD_LAZY);
+	if (!inst->kdb_ldap) {
+		cf_log_err_cs(conf, "could not open dynamic library located at libkdb_ldap_path");
+		return -1;
+	}
 
 	// TODO - Load all the functions from kdc libs
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_lib_init, (krb5_error_code (*)(void)));
+	KRB5_FUNCTION(kdb_ldap, krb5_db_setup_lib_handle, (krb5_error_code (*)(krb5_context)));
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_read_server_params, (krb5_error_code (*)(krb5_context, char*, int)));
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_db_init, (krb5_error_code (*)(krb5_context, krb5_ldap_context*)));
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_read_startup_information, (krb5_error_code (*)(krb5_context)));
+	KRB5_FUNCTION(kdb, krb5_db_setup_mkey_name, (krb5_error_code (*)(krb5_context, const char*, const char*, char**, krb5_principal*)));
+	KRB5_FUNCTION(kdb, krb5_db_fetch_mkey, (krb5_error_code (*)(krb5_context, krb5_principal, krb5_enctype, krb5_boolean, krb5_boolean, char*, krb5_kvno*, krb5_data*, krb5_keyblock*)));
+	KRB5_FUNCTION(kdb, krb5_db_verify_master_key, (krb5_error_code (*)(krb5_context, krb5_principal, krb5_kvno, krb5_keyblock*)));
+	KRB5_FUNCTION(kdb, krb5_dbekd_decrypt_key_data, (krb5_error_code (*)(krb5_context, const krb5_keyblock*, const krb5_key_data*, krb5_keyblock*, krb5_keysalt*)));
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_get_principal, (krb5_error_code (*)(krb5_context, krb5_const_principal, unsigned int, krb5_db_entry*, int*, krb5_boolean*)));
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_free_principal, (krb5_error_code (*)(krb5_context, krb5_db_entry*, int)));
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_close, (krb5_error_code (*)(krb5_context)));
+	KRB5_FUNCTION(kdb_ldap, krb5_ldap_lib_cleanup, (krb5_error_code (*)(void)));
 
 	// TODO - Do all the initialization from kdc
+	/* initializing */
+	if (krb5_init_context(&inst->krb_context)) {
+		cf_log_err_cs(conf, "krb5_init_context() function failed");
+		return -1;
+	}
+	if (krb5_get_default_realm(inst->krb_context, &inst->krb_context->default_realm)) {
+		cf_log_err_cs(conf, "krb5_get_default_realm() function failed");
+		return -1;
+	}
+	if (inst->krb5_ldap_lib_init()) {
+		cf_log_err_cs(conf, "krb5_ldap_lib_init() function failed");
+		return -1;
+	}
+	inst->krb_ldap_context = (krb5_ldap_context*)calloc(1, sizeof(krb5_ldap_context));
+	if (!inst->krb_ldap_context) {
+		cf_log_err_cs(conf, "calloc() function failed");
+		return -1;
+	}
+	inst->krb_ldap_context->kcontext = inst->krb_context;
+
+	/* getting infos from krb5.conf */
+	inst->krb_ldap_context->server_info_list = (krb5_ldap_server_info**)calloc(2, sizeof(krb5_ldap_server_info*));
+	if (!inst->krb_ldap_context->server_info_list) {
+	  cf_log_err_cs(conf, "calloc() function failed");
+	  return -1;
+	}
+	inst->krb_ldap_context->server_info_list[0] = (krb5_ldap_server_info*)calloc(1, sizeof(krb5_ldap_server_info));
+	if (!inst->krb_ldap_context->server_info_list[0]) {
+		cf_log_err_cs(conf, "calloc() function failed");
+		return -1;
+	}
+	inst->krb_ldap_context->server_info_list[0]->server_status = NOTSET;
+	if (profile_get_integer(inst->krb_context->profile, "dbmodules", "openldap_ldapconf", "ldap_conns_per_server" , 0, (int*)&inst->krb_ldap_context->max_server_conns)) {
+		cf_log_err_cs(conf, "profile_get_integer() function failed");
+		return -1;
+	}
+	if (!inst->krb_ldap_context->max_server_conns) {
+		cf_log_err_cs(conf, "ldap_conns_per_server isn't correctly set");
+		return -1;
+	}
+	if (profile_get_string(inst->krb_context->profile, "dbmodules", "openldap_ldapconf", "ldap_kdc_dn" , NULL, &inst->krb_ldap_context->bind_dn)) {
+		cf_log_err_cs(conf, "profile_get_string() function failed");
+		return -1;
+	}
+	if (!inst->krb_ldap_context->bind_dn) {
+		puts( "ldap_kdc_dn isn't correctly set");
+		return -1;
+	}
+	if (profile_get_string(inst->krb_context->profile, "dbmodules", "openldap_ldapconf", "ldap_service_password_file" , NULL, &inst->krb_ldap_context->service_password_file)) {
+		cf_log_err_cs(conf, "profile_get_string() function failed");
+		return -1;
+	}
+	if (!inst->krb_ldap_context->service_password_file) {
+		cf_log_err_cs(conf, "ldap_service_password_file isn't correctly set");
+		return -1;
+	}
+
+	/* this is quite incorrect if we have multiple ldap servers in krb5.conf */
+	if (profile_get_string(inst->krb_context->profile, "dbmodules", "openldap_ldapconf", "ldap_servers" , NULL, &inst->krb_ldap_context->server_info_list[0]->server_name)) {
+		cf_log_err_cs(conf, "profile_get_string() function failed");
+		return -1;
+	}
+	if (!inst->krb_ldap_context->server_info_list[0]->server_name) {
+		cf_log_err_cs(conf, "ldap_servers isn't correctly set");
+		return -1;
+	}
+
+	/* initiliazing connection */
+	if (inst->krb5_db_setup_lib_handle(inst->krb_context)) {
+		cf_log_err_cs(conf, "krb5_db_setup_lib_handle() function failed");
+		return -1;
+	}
+	inst->krb_context->dal_handle->db_context = inst->krb_ldap_context;
+	if (inst->krb5_ldap_read_server_params(inst->krb_context, NULL, KRB5_KDB_SRV_TYPE_OTHER)) {
+		cf_log_err_cs(conf, "krb5_ldap_read_server_params() function failed");
+		return -1;
+	}
+	if (inst->krb5_ldap_db_init(inst->krb_context, (krb5_ldap_context*)inst->krb_context->dal_handle->db_context)) {
+		cf_log_err_cs(conf, "krb5_ldap_db_init() function failed");
+		return -1;
+	}
+	if (inst->krb5_ldap_read_startup_information(inst->krb_context)) {
+		cf_log_err_cs(conf, "krb5_ldap_read_startup_information() function failed");
+		return -1;
+	}
+
+	/* retrieving master keyblock infos */
+	int entries;
+	char* stash_file;
+	krb5_boolean more;
+	krb5_db_entry master_entry;
+	krb5_principal master_principal;
+	if (inst->krb5_db_setup_mkey_name(inst->krb_context, KRB5_KDB_M_NAME, inst->krb_context->default_realm, 0, &master_principal)) {
+		cf_log_err_cs(conf, "krb5_db_setup_mkey_name() function failed");
+		return -1;
+	}
+	if (inst->krb5_ldap_get_principal(inst->krb_context, master_principal, 0, &master_entry, &entries, &more)) {
+		cf_log_err_cs(conf, "krb5_ldap_get_principal() function failed");
+		return -1;
+	}
+	else if (more) {
+		cf_log_err_cs(conf, "krb5_ldap_get_principal() function failed (returned more)");
+		return -1;
+	}
+	else if (!entries) {
+		cf_log_err_cs(conf, "krb5_ldap_get_principal() function failed (returned 0 entry)");
+		return -1;
+	}
+	if (profile_get_string(inst->krb_context->profile, "realms", inst->krb_context->default_realm, "key_stash_file" , NULL, &stash_file)) {
+		cf_log_err_cs(conf, "profile_get_string() function failed");
+		return -1;
+	}
+	if (!stash_file) {
+		cf_log_err_cs(conf, "key_stash_file isn't correctly set");
+		return -1;
+	}
+	inst->master_keyblock.enctype = ENCTYPE_UNKNOWN;
+	if (inst->krb5_db_fetch_mkey(inst->krb_context, master_principal, inst->master_keyblock.enctype, FALSE, FALSE, stash_file, 0, NULL, &inst->master_keyblock)) {
+		cf_log_err_cs(conf, "krb5_db_fetch_mkey() function failed");
+		return -1;
+	}
+	if (inst->krb5_db_verify_master_key(inst->krb_context, master_principal, 0, &inst->master_keyblock)) {
+		cf_log_err_cs(conf, "krb5_db_verify_master_key() function failed");
+		return -1;
+	}
+	inst->krb5_ldap_free_principal(inst->krb_context, &master_entry, entries);
+	krb5_free_principal(inst->krb_context, master_principal);
+	free(stash_file);
 
 	return 0;
 }
@@ -684,8 +853,12 @@ static int mod_detach(UNUSED void *instance)
 {
 	rlm_mschapv2_kerberos_t *inst = instance;
 
-	// TODO - Unlock all kdc connection and context
-	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L827
+	inst->krb5_ldap_close(inst->krb_context);
+  	inst->krb5_ldap_lib_cleanup();
+  	krb5_free_keyblock_contents(inst->krb_context, &inst->master_keyblock);
+  	krb5_free_context(inst->krb_context);
+  	dlclose(inst->kdb_ldap);
+  	dlclose(inst->kdb);
 #ifdef WITH_AUTH_WINBIND
 	fr_connection_pool_free(inst->wb_pool);
 #endif
@@ -693,8 +866,89 @@ static int mod_detach(UNUSED void *instance)
 	return 0;
 }
 
-// TODO - Add the kerberos_ntlm_hash function (updated) from Ether42
-// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L837
+/*
+ *  Helper function to retrieve a ntlm hash from krb database
+ */
+static unsigned char* kerberos_ntlm_hash(rlm_mschap_t* inst, char* principal) {
+	int entries;
+	int i, kvno = 0;
+	krb5_keyblock key;
+	krb5_boolean more;
+	krb5_db_entry db_entry;
+	krb5_principal krb_principal;
+
+	if (krb5_parse_name(inst->krb_context, principal, &krb_principal)) {
+		MSCHAP_INFO("won't check ntlm hash of %s: could not parse principal!", principal);
+		return NULL;
+	}
+	if (inst->krb5_ldap_get_principal(inst->krb_context, krb_principal, 0, &db_entry, &entries, &more)) {
+		krb5_free_principal(inst->krb_context, krb_principal);
+		MSCHAP_INFO("won't check ntlm hash of %s: could not get principal!", principal);
+		return NULL;
+	} else if (more) {
+		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
+		krb5_free_principal(inst->krb_context, krb_principal);
+		MSCHAP_INFO("won't check ntlm hash of %s: found more principals!", principal);
+		return NULL;
+	} else if (!entries) {
+		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
+		krb5_free_principal(inst->krb_context, krb_principal);
+		MSCHAP_INFO("won't check ntlm hash of %s: no entry for this principal!", principal);
+		return NULL;
+	}
+
+	/* check principal expiration */
+	if (db_entry.expiration && db_entry.expiration < time(NULL)) {
+		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
+		krb5_free_principal(inst->krb_context, krb_principal);
+		MSCHAP_INFO("won't check ntlm hash of %s: principal is expired!", principal);
+		return NULL;
+	}
+	
+	/* getting the latest kvno */
+	for (i = 0; i < db_entry.n_key_data; i++) {
+		if (kvno < db_entry.key_data[i].key_data_kvno)
+			kvno = db_entry.key_data[i].key_data_kvno;
+	}
+	if (!kvno) {
+		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
+		krb5_free_principal(inst->krb_context, krb_principal);
+		MSCHAP_INFO("won't check ntlm hash of %s: no kvno!", principal);
+		return NULL;
+	}
+	
+	/* getting the arc-four-hmac encrypted key */
+	for (i = 0; i < db_entry.n_key_data; i++) {
+		if (kvno == db_entry.key_data[i].key_data_kvno) {
+			if (!inst->krb5_dbekd_decrypt_key_data(inst->krb_context, &inst->master_keyblock, &db_entry.key_data[i], &key, NULL)) {
+				if (key.enctype == ENCTYPE_ARCFOUR_HMAC) {
+					break;
+				}
+				krb5_free_keyblock_contents(inst->krb_context, &key);
+			}
+		}
+	}
+	if (key.enctype != ENCTYPE_ARCFOUR_HMAC) {
+		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
+		krb5_free_principal(inst->krb_context, krb_principal);
+		MSCHAP_INFO("won't check ntlm hash of %s: no arcfour-hmac encryption!", principal);
+		return NULL;
+	}
+	
+	unsigned char* ntlm = malloc(16 * sizeof(unsigned char));
+	memcpy(ntlm, key.contents, 16);
+	char ntlm_hex[33];
+	char* ntlm_hex_ptr = ntlm_hex;
+	for (i = 0; i < 16; i++) {
+		snprintf(ntlm_hex_ptr, 3, "%02x", ntlm[i]);
+		ntlm_hex_ptr += 2;
+	}
+	DEBUG("ntlm hash found for %s: %s", principal, ntlm_hex);
+	inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
+	krb5_free_principal(inst->krb_context, krb_principal);
+	krb5_free_keyblock_contents(inst->krb_context, &key);
+	return ntlm;
+}
 
 /*
  *	add_reply() adds either MS-CHAP2-Success or MS-CHAP-Error
@@ -2044,8 +2298,6 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 		RDEBUG2("Client is using MS-CHAPv2");
 		mschap_result = do_mschap(inst, request, nt_password, mschapv1_challenge,
 					  response->vp_octets + 26, nthashhash, auth_method);
-		// TODO - Modify mschap_error for finding ntlm hash from kerberos database
-		// this is to be done if mschap_error < 0 (which means (?) password incorrect)
 		rcode = mschap_error(inst, request, *response->vp_octets,
 					mschap_result, mschap_version, smb_ctrl, 
 					username, mschapv1_challenge, nthashhash, response);
