@@ -575,13 +575,11 @@ static const CONF_PARSER module_config[] = {
  *  Useful macro to dlsym all the functions kdb .so
  */
 #define KRB5_FUNCTION(handle, function, type)								\
-	do {																	\
 		inst->function = type dlsym(inst->handle, #function);				\
 		if (!inst->function) {												\
       		cf_log_err_cs(conf, "could not find " #function "() function");	\
       		return -1;														\
-    	}																	\
-  	} while (0)
+    	}																	
 
 static int mod_bootstrap(CONF_SECTION *conf, void *instance)
 {
@@ -672,8 +670,6 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 		return -1;
 	}
 
-	// TODO - Check if kdc libs paths are set in the config
-	// https://github.com/ether42/freeradius-ldap-kerberos/blob/master/radius/freeradius-server-3.1.0/src/modules/rlm_mschapv2_kerberos/rlm_mschap.c#L655
 	/* checking if kdb libs paths are set in the configuration */
 	if (!inst->libkdb_path) {
 		cf_log_err_cs(conf, "libkdb_path path is incorrectly set");
