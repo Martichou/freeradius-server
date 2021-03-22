@@ -1868,7 +1868,6 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 	VALUE_PAIR *nt_password, *smb_ctrl;
 	VALUE_PAIR *username;
 	uint8_t nthashhash[NT_DIGEST_LENGTH];
-	char msch2resp[42];
 	char const *username_string;
 	int mschap_version = 0;
 	int mschap_result;
@@ -2304,7 +2303,7 @@ static rlm_rcode_t CC_HINT(nonnull) mod_authenticate(void *instance, REQUEST *re
 			}
 		}
 #endif
-
+		char msch2resp[42];
 		mschap_auth_response(username_string,		/* without the domain */
 				     nthashhash,		/* nt-hash-hash */
 				     response->vp_octets + 26,	/* peer response */
