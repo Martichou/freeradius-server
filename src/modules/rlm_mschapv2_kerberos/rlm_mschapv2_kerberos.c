@@ -699,7 +699,7 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_read_startup_information, (krb5_error_code (*)(krb5_context)));
 	KRB5_FUNCTION(kdb, krb5_db_setup_mkey_name, (krb5_error_code (*)(krb5_context, const char*, const char*, char**, krb5_principal*)));
 	KRB5_FUNCTION(kdb, krb5_db_fetch_mkey, (krb5_error_code (*)(krb5_context, krb5_principal, krb5_enctype, krb5_boolean, krb5_boolean, char*, krb5_kvno*, krb5_data*, krb5_keyblock*)));
-	KRB5_FUNCTION(kdb, krb5_db_verify_master_key, (krb5_error_code (*)(krb5_context, krb5_principal, krb5_kvno, krb5_keyblock*)));
+	KRB5_FUNCTION(kdb, krb5_db_fetch_mkey_list, (krb5_error_code (*)(krb5_context, krb5_principal, krb5_keyblock*)));
 	KRB5_FUNCTION(kdb, krb5_dbekd_decrypt_key_data, (krb5_error_code (*)(krb5_context, const krb5_keyblock*, const krb5_key_data*, krb5_keyblock*, krb5_keysalt*)));
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_get_principal, (krb5_error_code (*)(krb5_context, krb5_const_principal, unsigned int, krb5_db_entry*, int*, krb5_boolean*)));
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_free_principal, (krb5_error_code (*)(krb5_context, krb5_db_entry*, int)));
@@ -827,8 +827,8 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 		cf_log_err_cs(conf, "krb5_db_fetch_mkey() function failed");
 		return -1;
 	}
-	if (inst->krb5_db_verify_master_key(inst->krb_context, master_principal, 0, &inst->master_keyblock)) {
-		cf_log_err_cs(conf, "krb5_db_verify_master_key() function failed");
+	if (inst->krb5_db_fetch_mkey_list(inst->krb_context, master_principal, &inst->master_keyblock)) {
+		cf_log_err_cs(conf, "krb5_db_fetch_mkey_list() function failed");
 		return -1;
 	}
 	inst->krb5_ldap_free_principal(inst->krb_context, &master_entry, entries);
