@@ -62,7 +62,7 @@ typedef struct rlm_mschapv2_kerberos_t {
 	krb5_error_code	(*krb5_db_fetch_mkey)(krb5_context, krb5_principal, krb5_enctype, krb5_boolean, krb5_boolean, char*, krb5_kvno*, krb5_data*, krb5_keyblock*);
 	krb5_error_code	(*krb5_db_fetch_mkey_list)(krb5_context, krb5_principal, krb5_keyblock*);
 	krb5_error_code	(*krb5_dbe_decrypt_key_data)(krb5_context, const krb5_keyblock*, const krb5_key_data*, krb5_keyblock*, krb5_keysalt*);
-	krb5_error_code	(*krb5_ldap_get_principal)(krb5_context, krb5_const_principal, unsigned int, krb5_db_entry*, int*, krb5_boolean*);
+	krb5_error_code	(*krb5_ldap_get_principal)(krb5_context, krb5_const_principal, unsigned int, krb5_db_entry**);
 	krb5_error_code	(*krb5_dbe_free_contents)(krb5_context, krb5_db_entry*);
 	krb5_error_code	(*krb5_ldap_lib_cleanup)(void);
 	krb5_error_code	(*krb5_ldap_close)(krb5_context);
