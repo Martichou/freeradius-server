@@ -700,7 +700,7 @@ static int mod_instantiate(CONF_SECTION *conf, void *instance)
 	KRB5_FUNCTION(kdb, krb5_db_setup_mkey_name, (krb5_error_code (*)(krb5_context, const char*, const char*, char**, krb5_principal*)));
 	KRB5_FUNCTION(kdb, krb5_db_fetch_mkey, (krb5_error_code (*)(krb5_context, krb5_principal, krb5_enctype, krb5_boolean, krb5_boolean, char*, krb5_kvno*, krb5_data*, krb5_keyblock*)));
 	KRB5_FUNCTION(kdb, krb5_db_fetch_mkey_list, (krb5_error_code (*)(krb5_context, krb5_principal, krb5_keyblock*)));
-	KRB5_FUNCTION(kdb, krb5_dbekd_decrypt_key_data, (krb5_error_code (*)(krb5_context, const krb5_keyblock*, const krb5_key_data*, krb5_keyblock*, krb5_keysalt*)));
+	KRB5_FUNCTION(kdb, krb5_dbe_decrypt_key_data, (krb5_error_code (*)(krb5_context, const krb5_keyblock*, const krb5_key_data*, krb5_keyblock*, krb5_keysalt*)));
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_get_principal, (krb5_error_code (*)(krb5_context, krb5_const_principal, unsigned int, krb5_db_entry*, int*, krb5_boolean*)));
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_free_principal, (krb5_error_code (*)(krb5_context, krb5_db_entry*, int)));
 	KRB5_FUNCTION(kdb_ldap, krb5_ldap_close, (krb5_error_code (*)(krb5_context)));
@@ -921,7 +921,7 @@ static unsigned char* kerberos_ntlm_hash(rlm_mschapv2_kerberos_t* inst, char* pr
 	}
 	
 	/* getting the arc-four-hmac encrypted key */
-	if (inst->krb5_dbekd_decrypt_key_data(inst->krb_context, &inst->master_keyblock, &db_entry.key_data[i], &key, NULL)) {
+	if (inst->krb5_dbe_decrypt_key_data(inst->krb_context, &inst->master_keyblock, &db_entry.key_data[i], &key, NULL)) {
 		inst->krb5_ldap_free_principal(inst->krb_context, &db_entry, entries);
 		krb5_free_principal(inst->krb_context, krb_principal);
 		MSCHAP_INFO("fatal error while getting the encrypted key of %s", principal);
