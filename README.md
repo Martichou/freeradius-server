@@ -10,10 +10,6 @@
   </p>
 </div>
 
-Speculare server is intended to recieve data from speculare-client childrens.
-
-This project is meant to evolve in something more complete and more complexe in a somewhat near future.
-
 Server setup / Dev setup
 --------------------------
 
